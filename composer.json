@@ -1,0 +1,12 @@
+{
+    "name": "3rm4k0ff/ya-backuper",
+    "description": "Phar app to backup your project dir/project_db on yandex.disk cloud",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Ermakov Sergey",
+            "email": "s.ermakov@studio81.pw"
+        }
+    ],
+    "require": {}
+}
