@@ -1,51 +1,42 @@
 <?php
+//curl-php
+$config = json_decode(file_get_contents('config.json'),true);
 
-$config = require_once __DIR__."/config.php";
 date_default_timezone_set('UTC');
 $date = date('Ymd_His').'UTC'; // Дата создания бэкапа
-$tmpDir = __DIR__.'/'.$config['tmp_dir'];
+$tmpDir = $config['tmp_dir'];
 
-/**
- * MAGIC
- */
-if (!file_exists($tmpDir)) {
-  $mkdir = mkdir($tmpDir);
-  if (!$mkdir) {
-    print "Невозможно создать директорию $tmpDir \n";
-    exit(1);
-  }
-} elseif (file_exists($tmpDir) && is_dir($tmpDir) && !is_writable($tmpDir)) {
-  print "Директория $tmpDir не доступна для записи\n";
-  exit(1);
-}
 
-if (getDiskInfo()) {  
-  foreach($config['sites'] as $key => $site) {
-    if( file_exists($site['dir']) && is_dir($site['dir']) ) {
-      $archive = __DIR__."/{$config['tmp_dir']}/{$key}_{$date}.zip";
-      createZipArchive($site['dir'], $archive);
+if (getDiskInfo()) {
+    $archive = $config['tmp_dir']."/{$config['name']}_{$date}.zip";
 
-      // Если у сайта есть БД и она указана, то делаем дамп и добавляем его к архиву
-      if ( array_key_exists('db_name', $site) && $site['db_name']) {
-        $dump = __DIR__."/{$config['tmp_dir']}/{$site['db_name']}_dump_{$date}.sql"; 
-        
-        createMysqlDump($site['db_name'], $site['db_username'], $site['db_password'], $dump);        
-        appendFileToZipArchive($dump, $archive);
+    if(!empty($config['site_dir'] && file_exists($config['site_dir']) && is_dir($config['site_dir']))) {
+      createZipArchive($config['site_dir'], $archive);
+    }
+
+    if (!empty($config['db'])) {
+         $dump = "{$config['tmp_dir']}/{$config['name']}_dump_{$date}.sql";
+         createMysqlDump($config['db'], $config['db_login'], $config['db_pass'], $dump);
+
+         if(!empty($config['site_dir'])){
+             appendFileToZipArchive($dump, $archive);
+         }else{
+             createZipArchive($dump, $archive);
+         }
         unlink($dump);
       }
 
-      // Загружаем архивы на Я.Диск
-      if(!getDiskFileInfo($key)) {
-        createDiskDir($key);
+      if(!getDiskFileInfo($config['name'])) {
+          createDiskDir($config['name']);
       }
-      $upload = uploadFileToDisk($archive, $key);
+
+      $upload = uploadFileToDisk($archive, $config['name']);
       if ($upload) {
-        print "Файл $archive загружен.\n";
+          print "Файл $archive загружен.\n";
+          unlink($archive);
       } else {
-        print "Ошибка при загрузке файла $archive \n";
+          print "Ошибка при загрузке файла $archive \n";
       }
-    }
-  }
 } else {
   print "Ошибка при подключении к Яндекс.Диску\n";
   exit(1);
@@ -53,7 +44,7 @@ if (getDiskInfo()) {
 
 
 /**
- * Проверка подключения к диску и вывод базовой информации 
+ * Проверка подключения к диску и вывод базовой информации
  */
 function getDiskInfo() {
   global $config;
@@ -74,7 +65,7 @@ function getDiskInfo() {
   curl_setopt_array($ch, $options);
 
   $body = curl_exec($ch);
-  $res = curl_getinfo($ch); 
+  $res = curl_getinfo($ch);
   curl_close($ch);
 
   if ($res['http_code'] === 200) {
@@ -230,8 +221,6 @@ function uploadFileToDisk($filename, $dir = '') {
  * @param string $destination Имя файла zip архива
  */
 function createZipArchive($source, $destination) {
-  global $config;
-
 	if (extension_loaded('zip')) {
 
 		if (file_exists($source)) {
@@ -261,6 +250,7 @@ function createZipArchive($source, $destination) {
 			return $zip->close();
 		}
 	}
+	echo 'Zip extension is not installed';
 	return FALSE;
 }
 
@@ -272,18 +262,18 @@ function createZipArchive($source, $destination) {
  */
 function appendFileToZipArchive($file, $archive) {
   if (extension_loaded('zip')) {
-    
+
     if (file_exists($file)) {
       $zip = new ZipArchive();
 
       if ($zip->open($archive, ZIPARCHIVE::CREATE)) {
         $zip->AddFile($file, basename($file));
-        
+
         return $zip->close();
       }
     }
   }
-  return FALSE; 
+  return FALSE;
 }
 
 /**
